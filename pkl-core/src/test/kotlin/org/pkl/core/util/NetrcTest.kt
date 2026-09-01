@@ -17,7 +17,9 @@ package org.pkl.core.util
 
 import java.util.Base64
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import org.pkl.core.runtime.VmEvalException
 
 class NetrcTest {
 
@@ -92,6 +94,53 @@ class NetrcTest {
   }
 
   @Test
+  fun `escape sequences in quoted strings`() {
+    val content =
+      """
+      machine example.com login "user\nwith\tcontrol\rchars" password "pass\"with\\escapes"
+      """
+        .trimIndent()
+
+    val entries = Netrc.parse(content)
+    assertThat(entries)
+      .containsExactly(
+        Netrc.Entry("example.com", false, "user\nwith\tcontrol\rchars", "pass\"with\\escapes", null)
+      )
+  }
+
+  @Test
+  fun `case-insensitive keywords`() {
+    val content =
+      """
+      MACHINE example.com LOGIN myUser PASSWORD myPass ACCOUNT myAccount
+      DEFAULT LOGIN defUser PASSWORD defPass
+      """
+        .trimIndent()
+
+    val entries = Netrc.parse(content)
+    assertThat(entries)
+      .containsExactly(
+        Netrc.Entry("example.com", false, "myUser", "myPass", "myAccount"),
+        Netrc.Entry("default", true, "defUser", "defPass", null),
+      )
+  }
+
+  @Test
+  fun `discard unexpected tokens`() {
+    val content =
+      """
+      machine example.com login foo bar baz password qux extra1 extra2
+      """
+        .trimIndent()
+
+    val entries = Netrc.parse(content)
+    assertThat(entries)
+      .containsExactly(
+        Netrc.Entry("example.com", false, "foo", "qux", null)
+      )
+  }
+
+  @Test
   fun `skip macdef sections`() {
     val content =
       """
@@ -102,6 +151,15 @@ class NetrcTest {
       machine foo.com login user1 password pass1
       """
         .trimIndent()
+
+    val entries = Netrc.parse(content)
+    assertThat(entries).containsExactly(Netrc.Entry("foo.com", false, "user1", "pass1", null))
+  }
+
+  @Test
+  fun `skip macdef sections with crlf`() {
+    val content =
+      "macdef init\r\n  echo hello\r\n  echo world\r\n\r\nmachine foo.com login user1 password pass1\r\n"
 
     val entries = Netrc.parse(content)
     assertThat(entries).containsExactly(Netrc.Entry("foo.com", false, "user1", "pass1", null))
@@ -130,4 +188,13 @@ class NetrcTest {
     assertThat(Netrc.parse("# only comments\n# second line")).isEmpty()
     assertThat(Netrc.toHeadersMap(emptyList())).isEmpty()
   }
+
+  @Test
+  fun `handle unclosed quotes and invalid escapes`() {
+    assertThatThrownBy { Netrc.parse("machine foo.com login \"unclosed") }
+      .isInstanceOf(VmEvalException::class.java)
+    assertThatThrownBy { Netrc.parse("machine foo.com login \"invalid\\") }
+      .isInstanceOf(VmEvalException::class.java)
+  }
 }
+

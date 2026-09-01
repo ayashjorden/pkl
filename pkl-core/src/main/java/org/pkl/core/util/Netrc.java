@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 import org.pkl.core.runtime.VmEvalException;
@@ -55,38 +56,32 @@ public final class Netrc {
     var i = 0;
     while (i < tokens.size()) {
       var token = tokens.get(i++);
-      switch (token) {
+      switch (token.toLowerCase(Locale.ROOT)) {
         case "machine" -> {
-          if (currentMachine != null || isDefault) {
+          if (currentMachine != null) {
             entries.add(
                 new Entry(
                     currentMachine, isDefault, currentLogin, currentPassword, currentAccount));
-            currentMachine = null;
-            isDefault = false;
-            currentLogin = null;
-            currentPassword = null;
-            currentAccount = null;
           }
-          if (i < tokens.size()) {
-            currentMachine = tokens.get(i++);
-            isDefault = false;
-          }
+          isDefault = false;
+          currentLogin = null;
+          currentPassword = null;
+          currentAccount = null;
+          currentMachine = i < tokens.size() ? tokens.get(i++) : null;
         }
         case "default" -> {
-          if (currentMachine != null || isDefault) {
+          if (currentMachine != null) {
             entries.add(
                 new Entry(
                     currentMachine, isDefault, currentLogin, currentPassword, currentAccount));
-            currentMachine = null;
-            isDefault = false;
-            currentLogin = null;
-            currentPassword = null;
-            currentAccount = null;
           }
+          currentLogin = null;
+          currentPassword = null;
+          currentAccount = null;
           currentMachine = "default";
           isDefault = true;
         }
-        case "login", "user" -> {
+        case "login" -> {
           if (i < tokens.size()) {
             currentLogin = tokens.get(i++);
           }
@@ -102,19 +97,13 @@ public final class Netrc {
           }
         }
         case "macdef" -> {
-          // Macro definition: skip macro name and macro body lines until the next null line or EOF
-          if (i < tokens.size()) {
-            i++; // skip macro name
-          }
-          while (i < tokens.size() && !tokens.get(i).equals(NULL_LINE)) {
+          while (i < tokens.size()) {
+            if (tokens.get(i).equals(NULL_LINE)) {
+              i++;
+              break;
+            }
             i++;
           }
-          if (i < tokens.size() && tokens.get(i).equals(NULL_LINE)) {
-            i++;
-          }
-        }
-        case NULL_LINE -> {
-          // Ignore null lines outside macdef
         }
       }
     }
@@ -175,101 +164,106 @@ public final class Netrc {
     var tokens = new ArrayList<String>();
     var len = content.length();
     var i = 0;
-    var consecutiveNewlines = 0;
+    var atLineStart = true;
 
     while (i < len) {
       var c = content.charAt(i);
 
-      if (c == '\n') {
-        consecutiveNewlines++;
-        if (consecutiveNewlines >= 2) {
+      if (c == '\n' || (c == '\r' && i < len - 1 && content.charAt(i + 1) == '\n')) {
+        if (atLineStart) {
           tokens.add(NULL_LINE);
-          consecutiveNewlines = 0;
         }
+        atLineStart = true;
+        if (c == '\r') {
+          i += 2;
+        } else {
+          i++;
+        }
+        continue;
+      } else if (isWhitespace(c)) {
         i++;
         continue;
       }
 
-      if (Character.isWhitespace(c) || c == ',') {
-        i++;
+      // lines starting with `#` (after any leading blanks) are treated as comments
+      if (c == '#' && atLineStart) {
+        // Skip comment until end of line
+        i = consumeLineComment(i, content, len);
         continue;
       }
 
       // Non-whitespace character encountered
-      consecutiveNewlines = 0;
-
-      if (c == '#') {
-        // Skip comment until end of line
-        while (i < len && content.charAt(i) != '\n') {
-          i++;
-        }
-        continue;
-      }
-
+      atLineStart = false;
       if (c == '"') {
-        // Quoted token
-        i++; // skip opening quote
-        var sb = new StringBuilder();
-        var closed = false;
-        while (i < len) {
-          var qc = content.charAt(i);
-          if (qc == '\n' || qc == '\r') {
-            break;
-          }
-          if (qc == '\\') {
-            i++;
-            if (i >= len || content.charAt(i) == '\n' || content.charAt(i) == '\r') {
-              throw new VmExceptionBuilder()
-                  .evalError("cannotParseNetrc", "unclosed quote")
-                  .build();
-            }
-            sb.append(content.charAt(i++));
-          } else if (qc == '"') {
-            closed = true;
-            i++; // skip closing quote
-            break;
-          } else {
-            sb.append(qc);
-            i++;
-          }
-        }
-        if (!closed) {
-          throw new VmExceptionBuilder().evalError("cannotParseNetrc", "unclosed quote").build();
-        }
-        tokens.add(sb.toString());
-
-        // If followed immediately by another quote (e.g. login "foo""bar"), discard subsequent
-        // quoted text
-        if (i < len && content.charAt(i) == '"') {
-          i++;
-          while (i < len
-              && content.charAt(i) != '"'
-              && content.charAt(i) != '\n'
-              && content.charAt(i) != '\r') {
-            if (content.charAt(i) == '\\') {
-              i++;
-            }
-            i++;
-          }
-          if (i < len && content.charAt(i) == '"') {
-            i++;
-          }
-        }
-        continue;
+        i = consumeQuotedToken(i, content, len, tokens);
+      } else {
+        i = consumeUnquotedToken(i, content, len, tokens);
       }
-
-      // Unquoted token
-      var sb = new StringBuilder();
-      while (i < len) {
-        var uc = content.charAt(i);
-        if (Character.isWhitespace(uc) || uc == ',' || uc == '#') {
-          break;
-        }
-        sb.append(uc);
-        i++;
-      }
-      tokens.add(sb.toString());
     }
     return tokens;
+  }
+
+  private static int consumeLineComment(int i, String content, int len) {
+    while (i < len && content.charAt(i) != '\n') {
+      i++;
+    }
+    return i;
+  }
+
+  private static int consumeQuotedToken(int i, String content, int len, List<String> tokens) {
+    i++; // skip opening quote
+    var escape = false;
+    var sb = new StringBuilder();
+    while (i < len) {
+      var ch = content.charAt(i);
+      if (escape) {
+        var escapedChar =
+            switch (ch) {
+              case 'n' -> '\n';
+              case 't' -> '\t';
+              case 'r' -> '\r';
+              default -> ch;
+            };
+        sb.append(escapedChar);
+        escape = false;
+        i++;
+        continue;
+      }
+      switch (ch) {
+        case '"': {
+          tokens.add(sb.toString());
+          return i + 1;
+        }
+        case '\\': {
+          escape = true;
+          break;
+        }
+        default: {
+          sb.append(ch);
+        }
+      }
+      i++;
+    }
+    var reason = escape ? "invalid escape" : "unclosed quote";
+    throw new VmExceptionBuilder().evalError("cannotParseNetrc", reason).build();
+  }
+
+  private static int consumeUnquotedToken(int i, String content, int len, List<String> tokens) {
+    var sb = new StringBuilder();
+    while (i < len) {
+      var ch = content.charAt(i);
+      if (isWhitespace(ch)) {
+        tokens.add(sb.toString());
+        return i;
+      }
+      sb.append(ch);
+      i++;
+    }
+    tokens.add(sb.toString());
+    return i;
+  }
+
+  private static boolean isWhitespace(char c) {
+    return c == ' ' || c == '\n' || c == '\t' || c == '\r';
   }
 }

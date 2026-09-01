@@ -26,7 +26,7 @@ examples {
       }
       ["http{,s}://bar.com/**"] {
         ["Authorization"] {
-          "Basic YmFyMjpmb28="
+          "Basic YmFyMjpmb28jc29tZQ=="
         }
       }
     }
@@ -168,7 +168,7 @@ examples {
     new {
       ["http{,s}://foo.com/**"] {
         ["Authorization"] {
-          "Basic Zm9vOmZvbyB6"
+          "Basic Zm9vImJhcjpmb28gXHo="
         }
       }
     }
