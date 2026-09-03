@@ -23,8 +23,8 @@ import java.util.List;
 import java.util.Map;
 import org.pkl.core.runtime.Identifier;
 import org.pkl.core.runtime.VmList;
-import org.pkl.core.runtime.VmMap;
 import org.pkl.core.runtime.VmMapping;
+import org.pkl.core.runtime.VmObjectBuilder;
 import org.pkl.core.runtime.VmTyped;
 import org.pkl.core.runtime.VmUtils;
 import org.pkl.core.stdlib.ExternalMethod1Node;
@@ -49,29 +49,29 @@ public class HttpNodes {
     }
 
     private VmMapping doParse(String text) {
-      List<Netrc.Entry> entries = Netrc.parse(text);
-      Map<String, Map<String, List<String>>> headersMap = Netrc.toHeadersMap(entries);
+      var entries = Netrc.parse(text);
+      var headersMap = Netrc.toHeadersMap(entries);
       return toMapping(headersMap);
     }
 
     private static VmMapping toMapping(Map<String, Map<String, List<String>>> headersMap) {
-      var outerBuilder = VmMap.builder();
+      var outerBuilder = new VmObjectBuilder(headersMap.size());
       for (var entry : headersMap.entrySet()) {
         var globPattern = entry.getKey();
         var innerMap = entry.getValue();
 
-        var innerBuilder = VmMap.builder();
+        var innerBuilder = new VmObjectBuilder(innerMap.size());
         for (var headerEntry : innerMap.entrySet()) {
           var headerName = headerEntry.getKey();
           var headerValuesList = headerEntry.getValue();
 
-          innerBuilder.add(headerName, VmList.create(headerValuesList).toListing());
+          innerBuilder.addEntry(headerName, VmList.create(headerValuesList).toListing());
         }
 
-        outerBuilder.add(globPattern, innerBuilder.build().toMapping());
+        outerBuilder.addEntry(globPattern, innerBuilder.toMapping());
       }
 
-      return outerBuilder.build().toMapping();
+      return outerBuilder.toMapping();
     }
   }
 }
