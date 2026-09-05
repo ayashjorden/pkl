@@ -127,8 +127,9 @@ public final class Netrc {
       }
       var headerMap = Map.of("Authorization", List.of(authHeaderValue));
       if (entry.isDefault()) {
-        result.putIfAbsent("**", headerMap);
-      } else if (entry.machine() != null && !entry.machine().contains("/")) {
+        continue;
+      }
+      if (entry.machine() != null && !entry.machine().contains("/")) {
         result.putIfAbsent("http{,s}://" + escapeGlobPattern(entry.machine()) + "/**", headerMap);
       }
     }
@@ -230,17 +231,20 @@ public final class Netrc {
         continue;
       }
       switch (ch) {
-        case '"': {
-          tokens.add(sb.toString());
-          return i + 1;
-        }
-        case '\\': {
-          escape = true;
-          break;
-        }
-        default: {
-          sb.append(ch);
-        }
+        case '"':
+          {
+            tokens.add(sb.toString());
+            return i + 1;
+          }
+        case '\\':
+          {
+            escape = true;
+            break;
+          }
+        default:
+          {
+            sb.append(ch);
+          }
       }
       i++;
     }

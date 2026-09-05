@@ -97,11 +97,6 @@ examples {
   }
   ["netRcHeaders - machine default and default keyword"] {
     new {
-      ["**"] {
-        ["Authorization"] {
-          "Basic ZGVmVXNlcjpkZWZQYXNz"
-        }
-      }
       ["http{,s}://default/**"] {
         ["Authorization"] {
           "Basic bWFjaERlZlVzZXI6bWFjaERlZlBhc3M="

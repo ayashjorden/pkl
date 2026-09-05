@@ -55,14 +55,11 @@ class NetrcTest {
       "Basic " + Base64.getEncoder().encodeToString("octocat:secret_token_123".toByteArray())
     val basicArtifactory =
       "Basic " + Base64.getEncoder().encodeToString("user:my_token".toByteArray())
-    val basicDefault =
-      "Basic " + Base64.getEncoder().encodeToString("defaultuser:defaultpass".toByteArray())
-
     assertThat(headersMap["http{,s}://github.com/**"])
       .isEqualTo(mapOf("Authorization" to listOf(basicGithub)))
     assertThat(headersMap["http{,s}://my-artifactory.internal.net/**"])
       .isEqualTo(mapOf("Authorization" to listOf(basicArtifactory)))
-    assertThat(headersMap["**"]).isEqualTo(mapOf("Authorization" to listOf(basicDefault)))
+    assertThat(headersMap["**"]).isNull()
   }
 
   @Test
@@ -134,10 +131,7 @@ class NetrcTest {
         .trimIndent()
 
     val entries = Netrc.parse(content)
-    assertThat(entries)
-      .containsExactly(
-        Netrc.Entry("example.com", false, "foo", "qux", null)
-      )
+    assertThat(entries).containsExactly(Netrc.Entry("example.com", false, "foo", "qux", null))
   }
 
   @Test
@@ -190,6 +184,21 @@ class NetrcTest {
   }
 
   @Test
+  fun `discard default entry in headers map`() {
+    val content =
+      """
+      default login defUser password defPass
+      machine foo.com login fooUser password fooPass
+      """
+        .trimIndent()
+
+    val entries = Netrc.parse(content)
+    val headersMap = Netrc.toHeadersMap(entries)
+    assertThat(headersMap).doesNotContainKey("**")
+    assertThat(headersMap).containsKey("http{,s}://foo.com/**")
+  }
+
+  @Test
   fun `handle unclosed quotes and invalid escapes`() {
     assertThatThrownBy { Netrc.parse("machine foo.com login \"unclosed") }
       .isInstanceOf(VmEvalException::class.java)
@@ -197,4 +206,3 @@ class NetrcTest {
       .isInstanceOf(VmEvalException::class.java)
   }
 }
-
