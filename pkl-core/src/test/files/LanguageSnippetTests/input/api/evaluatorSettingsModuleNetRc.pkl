@@ -123,9 +123,9 @@ examples {
   }
 
   ["netRcHeaders - escaped quotes and chars"] {
-    http.netRcHeaders("""
-      machine foo.com login "foo\"bar" password "foo \\z"
-    """)
+    http.netRcHeaders(#"""
+      machine foo.com login "foo\"bar" password "foo \z"
+    """#)
   }
 
   ["netRcHeaders - consecutive quotes"] {

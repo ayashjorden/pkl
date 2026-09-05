@@ -49,7 +49,12 @@ public class HttpNodes {
     }
 
     private VmMapping doParse(String text) {
-      var entries = Netrc.parse(text);
+      List<Netrc.Entry> entries;
+      try {
+        entries = Netrc.parse(text);
+      } catch (Netrc.NetrcParseException e) {
+        throw exceptionBuilder().evalError("cannotParseNetrc", e.getMessage()).build();
+      }
       var headersMap = Netrc.toHeadersMap(entries);
       return toMapping(headersMap);
     }

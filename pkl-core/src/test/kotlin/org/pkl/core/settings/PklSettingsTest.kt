@@ -17,6 +17,7 @@ package org.pkl.core.settings
 
 import java.net.URI
 import java.nio.file.Path
+import java.util.Base64
 import kotlin.io.path.createParentDirectories
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatCode
@@ -201,7 +202,7 @@ class PklSettingsTest {
 
     val settings = PklSettings.load(ModuleSource.path(settingsPath))
     val expectedAuth =
-      "Basic " + java.util.Base64.getEncoder().encodeToString("octocat:secret_pass".toByteArray())
+      "Basic " + Base64.getEncoder().encodeToString("octocat:secret_pass".toByteArray())
     val expectedHttp =
       PklEvaluatorSettings.Http(
         null,

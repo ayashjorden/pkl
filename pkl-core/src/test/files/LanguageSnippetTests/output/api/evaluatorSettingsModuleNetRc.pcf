@@ -163,7 +163,7 @@ examples {
     new {
       ["http{,s}://foo.com/**"] {
         ["Authorization"] {
-          "Basic Zm9vImJhcjpmb28gXHo="
+          "Basic Zm9vImJhcjpmb28geg=="
         }
       }
     }
@@ -206,6 +206,6 @@ examples {
   }
   ["netRcHeaders - unterminated quote error"] {
     "Cannot parse .netrc: unclosed quote."
-    "Cannot parse .netrc: unclosed quote."
+    "Cannot parse .netrc: invalid escape."
   }
 }

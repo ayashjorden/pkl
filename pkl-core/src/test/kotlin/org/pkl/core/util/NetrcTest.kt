@@ -19,7 +19,6 @@ import java.util.Base64
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
-import org.pkl.core.runtime.VmEvalException
 
 class NetrcTest {
 
@@ -201,8 +200,8 @@ class NetrcTest {
   @Test
   fun `handle unclosed quotes and invalid escapes`() {
     assertThatThrownBy { Netrc.parse("machine foo.com login \"unclosed") }
-      .isInstanceOf(VmEvalException::class.java)
+      .isInstanceOf(Netrc.NetrcParseException::class.java)
     assertThatThrownBy { Netrc.parse("machine foo.com login \"invalid\\") }
-      .isInstanceOf(VmEvalException::class.java)
+      .isInstanceOf(Netrc.NetrcParseException::class.java)
   }
 }

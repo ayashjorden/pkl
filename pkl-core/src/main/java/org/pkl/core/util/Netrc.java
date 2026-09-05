@@ -23,11 +23,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
-import org.pkl.core.runtime.VmEvalException;
-import org.pkl.core.runtime.VmExceptionBuilder;
 
 public final class Netrc {
   private static final String NULL_LINE = "\0null_line\0";
+
+  public static final class NetrcParseException extends Exception {
+    public NetrcParseException(String message) {
+      super(message);
+    }
+  }
 
   private Netrc() {}
 
@@ -41,9 +45,9 @@ public final class Netrc {
   /**
    * Parses the content of a .netrc file into a list of {@link Entry}.
    *
-   * @throws VmEvalException if the content contains an unclosed quote or invalid escape.
+   * @throws NetrcParseException if the content contains an unclosed quote or invalid escape.
    */
-  public static List<Entry> parse(String content) {
+  public static List<Entry> parse(String content) throws NetrcParseException {
     var tokens = tokenize(content);
     var entries = new ArrayList<Entry>();
 
@@ -161,7 +165,7 @@ public final class Netrc {
     return "Basic " + encoded;
   }
 
-  public static List<String> tokenize(String content) {
+  public static List<String> tokenize(String content) throws NetrcParseException {
     var tokens = new ArrayList<String>();
     var len = content.length();
     var i = 0;
@@ -211,7 +215,8 @@ public final class Netrc {
     return i;
   }
 
-  private static int consumeQuotedToken(int i, String content, int len, List<String> tokens) {
+  private static int consumeQuotedToken(int i, String content, int len, List<String> tokens)
+      throws NetrcParseException {
     i++; // skip opening quote
     var escape = false;
     var sb = new StringBuilder();
@@ -249,7 +254,7 @@ public final class Netrc {
       i++;
     }
     var reason = escape ? "invalid escape" : "unclosed quote";
-    throw new VmExceptionBuilder().evalError("cannotParseNetrc", reason).build();
+    throw new NetrcParseException(reason);
   }
 
   private static int consumeUnquotedToken(int i, String content, int len, List<String> tokens) {
